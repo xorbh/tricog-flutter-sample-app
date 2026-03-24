@@ -1,0 +1,2 @@
+neon_api_key = "your-neon-api-key"
+neon_region  = "aws-us-east-1"

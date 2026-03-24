@@ -1,0 +1,22 @@
+[project]
+name = "cardioscan-backend"
+version = "0.1.0"
+description = "CardioScan ECG interpretation API"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.30",
+    "alembic>=1.14",
+    "boto3>=1.35",
+    "pyjwt[crypto]>=2.9",
+    "httpx>=0.28",
+    "pydantic-settings>=2.6",
+    "python-multipart>=0.0.12",
+    "numpy>=2.0",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
