@@ -4,8 +4,10 @@ import '../services/database_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/ecg_record_card.dart';
 import 'ecg_detail_screen.dart';
+import 'heart_rate_trends_screen.dart';
 import 'history_screen.dart';
 import 'new_recording_screen.dart';
+import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -73,10 +75,22 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildDashboard() {
     return CustomScrollView(
       slivers: [
-        const SliverAppBar(
-          title: Text('CardioScan'),
+        SliverAppBar(
+          title: const Text('CardioScan'),
           floating: true,
           pinned: true,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.person_outline),
+              tooltip: 'Profile',
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                );
+              },
+            ),
+          ],
         ),
         SliverPadding(
           padding: const EdgeInsets.all(16),
@@ -85,7 +99,48 @@ class _HomeScreenState extends State<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildStatsRow(),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
+
+                // Heart rate trends card
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const HeartRateTrendsScreen()),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [AppColors.primary.withAlpha(20), AppColors.accent.withAlpha(15)],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.primary.withAlpha(40)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.show_chart, color: AppColors.primary, size: 28),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Heart Rate Trends', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                              Text(
+                                'Track your heart rate over time',
+                                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.chevron_right, color: Colors.grey.shade400),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [

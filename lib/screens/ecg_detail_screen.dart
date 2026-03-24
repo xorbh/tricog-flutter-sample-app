@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/ecg_record.dart';
 import '../services/database_service.dart';
+import '../services/report_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/ecg_waveform_painter.dart';
 import '../widgets/severity_badge.dart';
+import '../widgets/symptom_chips.dart';
 
 class ECGDetailScreen extends StatefulWidget {
   final ECGRecord record;
@@ -52,6 +54,12 @@ class _ECGDetailScreenState extends State<ECGDetailScreen> {
       await DatabaseService.instance.deleteRecord(_record.id!);
       if (mounted) Navigator.pop(context);
     }
+  }
+
+  Future<void> _shareReport() async {
+    final profile = await DatabaseService.instance.getProfile();
+    final report = ReportService.generateTextReport(_record, profile);
+    await ReportService.shareReport(report);
   }
 
   void _editNotes() {
@@ -107,6 +115,11 @@ class _ECGDetailScreenState extends State<ECGDetailScreen> {
       appBar: AppBar(
         title: const Text('ECG Report'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.share_outlined),
+            onPressed: _shareReport,
+            tooltip: 'Share with Doctor',
+          ),
           if (_record.id != null)
             IconButton(
               icon: const Icon(Icons.delete_outline),
@@ -149,6 +162,31 @@ class _ECGDetailScreenState extends State<ECGDetailScreen> {
                 ),
               ),
             ),
+
+            // Symptoms
+            if (_record.symptoms.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Symptoms Reported', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                      const SizedBox(height: 10),
+                      SymptomChips(symptoms: _record.symptoms),
+                      if (_record.symptomNote != null && _record.symptomNote!.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          '"${_record.symptomNote}"',
+                          style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey.shade600),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
 
             // ECG Waveform
             const SizedBox(height: 8),
@@ -250,6 +288,17 @@ class _ECGDetailScreenState extends State<ECGDetailScreen> {
                     ],
                   ),
                 ),
+              ),
+            ),
+
+            // Share button
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _shareReport,
+              icon: const Icon(Icons.share),
+              label: const Text('Share with Doctor'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
               ),
             ),
             const SizedBox(height: 80),

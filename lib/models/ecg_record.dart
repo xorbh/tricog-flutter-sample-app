@@ -14,6 +14,8 @@ class ECGRecord {
   final int heartRate;
   final List<String> findings;
   final String? doctorNotes;
+  final List<String> symptoms;
+  final String? symptomNote;
 
   ECGRecord({
     this.id,
@@ -27,6 +29,8 @@ class ECGRecord {
     required this.heartRate,
     required this.findings,
     this.doctorNotes,
+    this.symptoms = const [],
+    this.symptomNote,
   });
 
   ECGRecord copyWith({
@@ -41,6 +45,8 @@ class ECGRecord {
     int? heartRate,
     List<String>? findings,
     String? doctorNotes,
+    List<String>? symptoms,
+    String? symptomNote,
   }) {
     return ECGRecord(
       id: id ?? this.id,
@@ -54,6 +60,8 @@ class ECGRecord {
       heartRate: heartRate ?? this.heartRate,
       findings: findings ?? this.findings,
       doctorNotes: doctorNotes ?? this.doctorNotes,
+      symptoms: symptoms ?? this.symptoms,
+      symptomNote: symptomNote ?? this.symptomNote,
     );
   }
 
@@ -70,6 +78,8 @@ class ECGRecord {
       'heart_rate': heartRate,
       'findings': jsonEncode(findings),
       'doctor_notes': doctorNotes,
+      'symptoms': jsonEncode(symptoms),
+      'symptom_note': symptomNote,
     };
   }
 
@@ -90,6 +100,12 @@ class ECGRecord {
           .map((e) => e as String)
           .toList(),
       doctorNotes: map['doctor_notes'] as String?,
+      symptoms: map['symptoms'] != null
+          ? (jsonDecode(map['symptoms'] as String) as List)
+              .map((e) => e as String)
+              .toList()
+          : [],
+      symptomNote: map['symptom_note'] as String?,
     );
   }
 }

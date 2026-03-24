@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../models/ecg_record.dart';
 import '../theme/app_colors.dart';
 import 'severity_badge.dart';
+import 'symptom_chips.dart';
 
 class ECGRecordCard extends StatelessWidget {
   final ECGRecord record;
@@ -35,7 +36,7 @@ class ECGRecordCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      record.patientName,
+                      record.interpretation,
                       style: const TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 15,
@@ -43,7 +44,7 @@ class ECGRecordCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${record.interpretation} \u00b7 ${record.heartRate} BPM',
+                      '${record.heartRate} BPM',
                       style: TextStyle(
                         color: Colors.grey.shade600,
                         fontSize: 13,
@@ -57,6 +58,10 @@ class ECGRecordCard extends StatelessWidget {
                         fontSize: 11,
                       ),
                     ),
+                    if (record.symptoms.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      SymptomChips(symptoms: record.symptoms, compact: true),
+                    ],
                   ],
                 ),
               ),

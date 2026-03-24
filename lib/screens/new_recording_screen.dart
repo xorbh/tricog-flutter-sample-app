@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/ecg_record.dart';
+import '../models/user_profile.dart';
 import '../services/database_service.dart';
 import '../services/ecg_simulator.dart';
 import '../services/interpretation_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/ecg_waveform_painter.dart';
 import '../widgets/severity_badge.dart';
+import '../widgets/symptom_chips.dart';
 import 'ecg_detail_screen.dart';
 
 class NewRecordingScreen extends StatefulWidget {
@@ -18,18 +20,31 @@ class NewRecordingScreen extends StatefulWidget {
 
 class _NewRecordingScreenState extends State<NewRecordingScreen>
     with TickerProviderStateMixin {
-  final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _ageController = TextEditingController();
-  String _gender = 'Male';
+  // Steps: 0=symptoms, 1=capture, 2=interpreting, 3=result
+  int _step = 0;
 
-  int _step = 0; // 0=form, 1=capture, 2=interpreting, 3=result
+  // Symptom state
+  final Set<String> _selectedSymptoms = {};
+  final _symptomNoteController = TextEditingController();
+  static const List<String> _symptomOptions = [
+    'Chest Pain',
+    'Palpitations',
+    'Dizziness',
+    'Shortness of Breath',
+    'Fatigue',
+    'Routine Check',
+  ];
+
+  // Capture state
   List<double> _ecgData = [];
   String _ecgType = '';
   InterpretationResult? _interpretation;
   late AnimationController _captureAnimController;
   Timer? _captureTimer;
   int _captureSeconds = 10;
+
+  // Profile
+  UserProfile? _profile;
 
   @override
   void initState() {
@@ -38,19 +53,28 @@ class _NewRecordingScreenState extends State<NewRecordingScreen>
       vsync: this,
       duration: const Duration(seconds: 10),
     );
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    _profile = await DatabaseService.instance.getProfile();
   }
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _ageController.dispose();
+    _symptomNoteController.dispose();
     _captureAnimController.dispose();
     _captureTimer?.cancel();
     super.dispose();
   }
 
   void _startCapture() {
-    if (!_formKey.currentState!.validate()) return;
+    if (_selectedSymptoms.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select how you are feeling')),
+      );
+      return;
+    }
 
     final result = ECGSimulator.generateRandom();
     _ecgData = result.data;
@@ -79,16 +103,21 @@ class _NewRecordingScreenState extends State<NewRecordingScreen>
   }
 
   Future<void> _saveRecord() async {
+    final profile = _profile;
     final record = ECGRecord(
-      patientName: _nameController.text.trim(),
-      patientAge: int.parse(_ageController.text.trim()),
-      patientGender: _gender,
+      patientName: profile?.name ?? 'Unknown',
+      patientAge: profile?.age ?? 0,
+      patientGender: profile?.gender ?? 'Unknown',
       timestamp: DateTime.now(),
       ecgData: _ecgData,
       interpretation: _interpretation!.diagnosis,
       severity: _interpretation!.severity,
       heartRate: _interpretation!.heartRate,
       findings: _interpretation!.findings,
+      symptoms: _selectedSymptoms.toList(),
+      symptomNote: _symptomNoteController.text.trim().isEmpty
+          ? null
+          : _symptomNoteController.text.trim(),
     );
 
     final id = await DatabaseService.instance.insertRecord(record);
@@ -106,18 +135,17 @@ class _NewRecordingScreenState extends State<NewRecordingScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_step == 0
-            ? 'Patient Information'
-            : _step == 1
-                ? 'Capturing ECG...'
-                : _step == 2
-                    ? 'Analyzing...'
-                    : 'Results'),
+        title: Text(switch (_step) {
+          0 => 'How Are You Feeling?',
+          1 => 'Capturing ECG...',
+          2 => 'Analyzing...',
+          _ => 'Results',
+        }),
       ),
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 300),
         child: switch (_step) {
-          0 => _buildForm(),
+          0 => _buildSymptoms(),
           1 => _buildCapture(),
           2 => _buildAnalyzing(),
           _ => _buildResults(),
@@ -126,63 +154,87 @@ class _NewRecordingScreenState extends State<NewRecordingScreen>
     );
   }
 
-  Widget _buildForm() {
+  Widget _buildSymptoms() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Icon(Icons.person_outline, size: 64, color: AppColors.primary.withAlpha(100)),
-            const SizedBox(height: 24),
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Patient Name',
-                prefixIcon: Icon(Icons.person),
-              ),
-              textCapitalization: TextCapitalization.words,
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Icon(Icons.self_improvement, size: 56, color: AppColors.primary.withAlpha(120)),
+          const SizedBox(height: 16),
+          const Text(
+            'Before we start, how are you feeling right now?',
+            style: TextStyle(fontSize: 16),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: _symptomOptions.map((symptom) {
+              final selected = _selectedSymptoms.contains(symptom);
+              final isRoutine = symptom == 'Routine Check';
+              return FilterChip(
+                label: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      SymptomChips.symptomIcons[symptom] ?? Icons.circle,
+                      size: 16,
+                      color: selected
+                          ? Colors.white
+                          : isRoutine
+                              ? AppColors.normalGreen
+                              : Colors.orange.shade700,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(symptom),
+                  ],
+                ),
+                selected: selected,
+                selectedColor: isRoutine ? AppColors.normalGreen : AppColors.warningAmber,
+                checkmarkColor: Colors.white,
+                labelStyle: TextStyle(
+                  color: selected ? Colors.white : null,
+                ),
+                onSelected: (v) {
+                  setState(() {
+                    if (isRoutine) {
+                      _selectedSymptoms.clear();
+                      if (v) _selectedSymptoms.add(symptom);
+                    } else {
+                      _selectedSymptoms.remove('Routine Check');
+                      if (v) {
+                        _selectedSymptoms.add(symptom);
+                      } else {
+                        _selectedSymptoms.remove(symptom);
+                      }
+                    }
+                  });
+                },
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: _symptomNoteController,
+            decoration: const InputDecoration(
+              labelText: 'Additional notes (optional)',
+              hintText: 'e.g., "Just finished exercising"',
+              prefixIcon: Icon(Icons.notes),
             ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _ageController,
-              decoration: const InputDecoration(
-                labelText: 'Age',
-                prefixIcon: Icon(Icons.cake),
-              ),
-              keyboardType: TextInputType.number,
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Required';
-                final age = int.tryParse(v.trim());
-                if (age == null || age < 1 || age > 150) return 'Enter valid age';
-                return null;
-              },
+            maxLines: 2,
+          ),
+          const SizedBox(height: 32),
+          ElevatedButton.icon(
+            onPressed: _startCapture,
+            icon: const Icon(Icons.play_arrow),
+            label: const Text('Start ECG Capture'),
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 18),
             ),
-            const SizedBox(height: 16),
-            const Text('Gender', style: TextStyle(fontWeight: FontWeight.w500)),
-            const SizedBox(height: 8),
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'Male', label: Text('Male'), icon: Icon(Icons.male)),
-                ButtonSegment(value: 'Female', label: Text('Female'), icon: Icon(Icons.female)),
-                ButtonSegment(value: 'Other', label: Text('Other')),
-              ],
-              selected: {_gender},
-              onSelectionChanged: (v) => setState(() => _gender = v.first),
-            ),
-            const SizedBox(height: 40),
-            ElevatedButton.icon(
-              onPressed: _startCapture,
-              icon: const Icon(Icons.play_arrow),
-              label: const Text('Start ECG Capture'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 18),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -339,7 +391,10 @@ class _NewRecordingScreenState extends State<NewRecordingScreen>
           ),
           const SizedBox(height: 16),
 
-          // Details
+          // What this means
+          _buildGuidanceCard(interp.severity),
+          const SizedBox(height: 16),
+
           Text(interp.details, style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
           const SizedBox(height: 16),
 
@@ -367,6 +422,54 @@ class _NewRecordingScreenState extends State<NewRecordingScreen>
           OutlinedButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGuidanceCard(Severity severity) {
+    final (color, icon, title, message) = switch (severity) {
+      Severity.normal => (
+          AppColors.normalGreen,
+          Icons.check_circle,
+          'All looks good',
+          'Your heart rhythm appears normal. Keep up the good work with regular monitoring.',
+        ),
+      Severity.warning => (
+          AppColors.warningAmber,
+          Icons.warning_amber_rounded,
+          'Worth monitoring',
+          'Some findings may need attention. Consider sharing this report with your doctor at your next visit.',
+        ),
+      Severity.critical => (
+          AppColors.criticalRed,
+          Icons.emergency,
+          'Contact your doctor',
+          'This result may require prompt medical attention. Please share this report with your doctor or seek medical care.',
+        ),
+    };
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withAlpha(20),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withAlpha(60)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 32),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: TextStyle(fontWeight: FontWeight.w700, color: color, fontSize: 15)),
+                const SizedBox(height: 4),
+                Text(message, style: TextStyle(fontSize: 13, color: color.withAlpha(200))),
+              ],
+            ),
           ),
         ],
       ),
