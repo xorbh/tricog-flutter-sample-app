@@ -1,6 +1,11 @@
 import asyncio
 import os
+import sys
 from logging.config import fileConfig
+from pathlib import Path
+
+# Add project root to path so 'app' is importable
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from alembic import context
 from sqlalchemy import pool
@@ -21,6 +26,8 @@ if db_url.startswith("postgres://"):
     db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
 elif db_url.startswith("postgresql://"):
     db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+# asyncpg uses ssl=require instead of sslmode=require
+db_url = db_url.replace("sslmode=require", "ssl=require").replace("&channel_binding=require", "")
 
 config.set_main_option("sqlalchemy.url", db_url)
 

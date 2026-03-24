@@ -17,6 +17,9 @@ dependencies = [
     "numpy>=2.0",
 ]
 
+[tool.setuptools.packages.find]
+include = ["app*", "scripts*"]
+
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
