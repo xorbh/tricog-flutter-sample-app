@@ -288,12 +288,12 @@ cardioscan-backend/
 ├── scripts/
 │   └── seed.py                       # Generate 20 sample ECG records
 ├── terraform/
-│   ├── main.tf                       # Fly.io app, Neon DB, Tigris bucket
+│   ├── main.tf                       # Neon DB provisioning only
 │   ├── variables.tf
 │   ├── outputs.tf
 │   └── terraform.tfvars.example
 ├── Dockerfile
-├── fly.toml
+├── fly.toml                          # Fly.io app config + deployment
 ├── pyproject.toml
 ├── requirements.txt
 └── README.md
@@ -301,22 +301,47 @@ cardioscan-backend/
 
 ---
 
-## 4. Terraform Resources
+## 4. Infrastructure
+
+### Terraform (Neon DB only)
 
 | Resource | Provider | Purpose |
 |---|---|---|
-| `fly_app.cardioscan_api` | `fly-apps/fly` | Fly.io application |
 | `neon_project.cardioscan` | `kislerdm/neon` | Neon Postgres project |
 | `neon_database.cardioscan` | `kislerdm/neon` | Database instance |
 | `neon_role.app_user` | `kislerdm/neon` | App database role |
-| `null_resource.tigris_bucket` | hashicorp/null | Tigris bucket via `fly storage create` |
 
-**Fly.io Secrets** (set via Terraform `null_resource`):
-- `DATABASE_URL` — Neon connection string
-- `AWS_ACCESS_KEY_ID` — Tigris credentials
-- `AWS_SECRET_ACCESS_KEY` — Tigris credentials
-- `AWS_ENDPOINT_URL_S3` — `https://fly.storage.tigris.dev`
-- `BUCKET_NAME` — `cardioscan-ecg-data`
+**Outputs**: `DATABASE_URL` connection string (sensitive)
+
+### Fly.io (CLI-managed)
+
+Fly.io app, Tigris storage, and secrets are managed via the Fly CLI — no Terraform needed.
+
+**Setup commands:**
+```bash
+# Create the app
+fly apps create cardioscan-api
+
+# Create Tigris bucket (auto-sets S3 env vars as secrets)
+fly storage create --name cardioscan-ecg-data --app cardioscan-api
+
+# Set remaining secrets
+fly secrets set -a cardioscan-api \
+  DATABASE_URL="<from terraform output>" \
+  CLERK_SECRET_KEY="sk_test_..." \
+  CLERK_FRONTEND_API_URL="https://romantic-herring-93.clerk.accounts.dev" \
+  CLERK_PUBLISHABLE_KEY="pk_test_..."
+
+# Deploy
+fly deploy
+```
+
+**Fly.io Secrets** (full list):
+- `DATABASE_URL` — Neon connection string (from Terraform output)
+- `AWS_ACCESS_KEY_ID` — Tigris credentials (auto-set by `fly storage create`)
+- `AWS_SECRET_ACCESS_KEY` — Tigris credentials (auto-set)
+- `AWS_ENDPOINT_URL_S3` — `https://fly.storage.tigris.dev` (auto-set)
+- `BUCKET_NAME` — `cardioscan-ecg-data` (auto-set)
 - `CLERK_SECRET_KEY` — `sk_test_...`
 - `CLERK_FRONTEND_API_URL` — `https://romantic-herring-93.clerk.accounts.dev`
 - `CLERK_PUBLISHABLE_KEY` — `pk_test_...`
@@ -402,13 +427,14 @@ python-multipart>=0.0.12
 
 ## 8. Implementation Order
 
-1. **Terraform** — Provision Fly app, Neon DB, Tigris bucket
-2. **Database** — SQLAlchemy models, Alembic migration
-3. **Auth** — Clerk JWT verification
-4. **Profile endpoints** — GET/PUT profile
-5. **Storage service** — Tigris upload/download/delete
-6. **Interpretation service** — Python port of the algo
-7. **ECG record endpoints** — CRUD + waveform + report
-8. **Analytics endpoints** — Stats + trends
-9. **Seed script** — Generate sample data
-10. **Dockerfile + fly.toml** — Deploy to Fly.io
+1. **Terraform** — Provision Neon DB
+2. **Fly.io setup** — `fly apps create`, `fly storage create`, set secrets
+3. **Database** — SQLAlchemy models, Alembic migration
+4. **Auth** — Clerk JWT verification
+5. **Profile endpoints** — GET/PUT profile
+6. **Storage service** — Tigris upload/download/delete
+7. **Interpretation service** — Python port of the algo
+8. **ECG record endpoints** — CRUD + waveform + report
+9. **Analytics endpoints** — Stats + trends
+10. **Seed script** — Generate sample data
+11. **Dockerfile + fly.toml** — Deploy to Fly.io
